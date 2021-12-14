@@ -1,0 +1,71 @@
+﻿@page "/fetchdata"
+@inject HttpClient Http;
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+<h1>Weather forecast</h1>
+
+<p>Choose maximum number of items in columns:</p>
+<input type="number" id="maxItemBox" @bind="CurrentValue" />
+<button @onclick="ChangeMaxNr">Submit</button>
+
+@if (forecasts == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <ul style="list-style-type: none;">
+        <Checklist Items="forecasts" @bind-SelectedItems="SelectedForecasts" Context="forecast">
+            <ItemTemplate>
+                <li>  @forecast.Summary</li>
+            </ItemTemplate>
+        </Checklist>
+    </ul>
+}
+<hr />
+<h2>Selected Items</h2>
+<ul>
+    @foreach (var item in SelectedForecasts)
+    {
+        <li>@item.TemperatureC : @item.Summary</li>
+    }
+</ul>
+@code {
+    private WeatherForecast[] forecasts;
+    List<WeatherForecast> SelectedForecasts { get; set; } = new();
+    private int CurrentValue { get; set; }
+    private Task<IJSObjectReference> _module;
+    private Task<IJSObjectReference> Module => _module ??= JSRuntime.InvokeAsync<IJSObjectReference>("import", "./JS/JSFile.js").AsTask();
+
+    protected override async Task OnInitializedAsync()
+    {
+        forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("sample-data/weather.json");
+    }
+    protected async Task ChangeMaxNr()
+    {
+        int itemsNr = forecasts.Count();
+        int maxRows = CurrentValue;
+        
+        var module = await Module;
+        await module.InvokeVoidAsync("ChangeMaxRowNumber", CurrentValue, itemsNr);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module != null)
+        {
+            var module = await _module;
+            await module.DisposeAsync();
+        }
+    }
+    public class WeatherForecast
+    {
+        public DateTime Date { get; set; }
+
+        public int TemperatureC { get; set; }
+
+        public string Summary { get; set; }
+
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    }
+}
